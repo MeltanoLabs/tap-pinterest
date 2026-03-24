@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from singer_sdk import StreamSchema
 from singer_sdk.pagination import BaseAPIPaginator, SinglePagePaginator
 
-from tap_pinterest.client import PinterestStream, OPENAPI
+from tap_pinterest.client import PinterestStream, OPENAPI, PinterestSchema
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -49,7 +49,7 @@ class AdAccountsStream(PinterestStream):
     primary_keys = ("id",)
     replication_key = None
 
-    schema: ClassVar[StreamSchema] = StreamSchema(OPENAPI, key="AdAccount")
+    schema = PinterestSchema(OPENAPI, key="AdAccount")
 
     @override
     def get_child_context(self, record: dict, context: Context | None) -> dict:
@@ -66,7 +66,7 @@ class CampaignsStream(PinterestStream):
     replication_key = "updated_time"
     parent_stream_type = AdAccountsStream
 
-    schema: ClassVar[StreamSchema] = StreamSchema(OPENAPI, key="CampaignResponse")
+    schema = PinterestSchema(OPENAPI, key="CampaignResponse")
 
 
 class AdGroupsStream(PinterestStream):
@@ -78,7 +78,7 @@ class AdGroupsStream(PinterestStream):
     replication_key = "updated_time"
     parent_stream_type = AdAccountsStream
 
-    schema: ClassVar[StreamSchema] = StreamSchema(OPENAPI, key="AdGroupResponse")
+    schema = PinterestSchema(OPENAPI, key="AdGroupResponse")
 
 
 class AdsStream(PinterestStream):
@@ -90,7 +90,7 @@ class AdsStream(PinterestStream):
     replication_key = "updated_time"
     parent_stream_type = AdAccountsStream
 
-    schema: ClassVar[StreamSchema] = StreamSchema(OPENAPI, key="AdResponse")
+    schema = PinterestSchema(OPENAPI, key="AdResponse")
 
 
 _METRICS_PROPERTY: dict = {
@@ -114,7 +114,7 @@ class _AnalyticsStream(PinterestStream):
 
     # Analytics endpoints return a plain array, not a paginated {"items": [...]}
     records_jsonpath = "$[*]"
-    replication_key = None
+    replication_key = "DATE"
 
     #: Column names that remain at the top level of the record (not moved to metrics).
     _identity_keys: ClassVar[frozenset[str]] = frozenset({"DATE"})
@@ -131,18 +131,20 @@ class _AnalyticsStream(PinterestStream):
         next_page_token: Any | None,
     ) -> dict[str, Any]:
         """Return URL parameters including required analytics fields."""
-        start_date = self.config.get(
-            "start_date",
-            (datetime.now(tz=timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d"),
-        )
+        if bookmark := self.get_starting_timestamp(context):
+            start_date = bookmark
+        else:
+            start_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
+
         end_date = self.config.get(
             "end_date",
             datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
         )
+
         columns = self.config.get("analytics_columns", DEFAULT_ANALYTICS_COLUMNS)
         granularity = self.config.get("analytics_granularity", "DAY")
         return {
-            "start_date": start_date,
+            "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date,
             "columns": columns,
             "granularity": granularity,
@@ -174,9 +176,9 @@ class CampaignAnalyticsStream(_AnalyticsStream):
                 "description": "The ID of the campaign these metrics belong to.",
             },
             "DATE": {
-                "type": ["string", "null"],
+                "type": "string",
                 "format": "date",
-                "description": "Metrics date. Only present when granularity is DAY, HOUR, WEEK, or MONTH.",
+                "description": "Metrics date.",
             },
             "metrics": _METRICS_PROPERTY,
         },
@@ -202,7 +204,7 @@ class AdAnalyticsStream(_AnalyticsStream):
                 "description": "The ID of the ad these metrics belong to.",
             },
             "DATE": {
-                "type": ["string", "null"],
+                "type": "string",
                 "format": "date",
                 "description": "Metrics date. Only present when granularity is DAY, HOUR, WEEK, or MONTH.",
             },

@@ -9,7 +9,7 @@ from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from singer_sdk import OpenAPISchema
+from singer_sdk import OpenAPISchema, StreamSchema, Stream
 from singer_sdk.helpers.jsonpath import extract_jsonpath
 from singer_sdk.pagination import BaseAPIPaginator
 from singer_sdk.streams import RESTStream
@@ -28,25 +28,20 @@ if TYPE_CHECKING:
     from singer_sdk.helpers.types import Auth, Context
 
 
-class PinterestOpenAPISchema(OpenAPISchema):
-    """OpenAPI schema source that unwraps array-envelope schemas to their item schema.
 
-    Pinterest analytics endpoints return responses typed as arrays in the spec
-    (e.g. ``CampaignsAnalyticsResponse`` is ``type: array``), but Singer streams
-    need the *item* schema.  This subclass extracts ``items`` automatically so
-    analytics streams can reference their component directly.
-    """
+class PinterestSchema(StreamSchema):
+    @override
+    def get_stream_schema(self, stream: Stream, stream_class: type[Stream]):
+        schema = super().get_stream_schema(stream, stream_class)
 
-    def fetch_schema(self, key: str) -> dict:  # type: ignore[override]
-        """Return the item schema for array-type components, otherwise pass through."""
-        schema = super().fetch_schema(key)
-        if schema.get("type") == "array" and "items" in schema:
-            return schema["items"]
+        # Remove problematic field
+        if stream.name == "ad_groups":
+            schema["properties"].pop("dca_assets", None)
         return schema
 
 
 #: Shared OpenAPI schema source pointing to the bundled Pinterest v5 spec.
-OPENAPI = PinterestOpenAPISchema(resources.files("tap_pinterest") / "openapi.json")
+OPENAPI = OpenAPISchema(resources.files("tap_pinterest") / "openapi.json")
 
 
 class PinterestPaginator(BaseAPIPaginator):
@@ -56,11 +51,8 @@ class PinterestPaginator(BaseAPIPaginator):
         """Return True if the response contains a bookmark for the next page."""
         return bool(response.json().get("bookmark"))
 
-    def get_next_page_token(
-        self,
-        response: requests.Response,
-        previous_token: str | None,
-    ) -> str | None:
+    @override
+    def get_next(self, response: requests.Response) -> str | None:
         """Extract the bookmark cursor from the response."""
         return response.json().get("bookmark") or None
 

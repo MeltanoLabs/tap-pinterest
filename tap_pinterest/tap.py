@@ -58,10 +58,7 @@ class TapPinterest(Tap):
             "end_date",
             th.StringType,
             title="End Date",
-            description=(
-                "End date for analytics streams in YYYY-MM-DD format. "
-                "Defaults to today."
-            ),
+            description="End date for analytics streams in YYYY-MM-DD format. Defaults to today.",
         ),
         th.Property(
             "analytics_columns",
@@ -79,9 +76,9 @@ class TapPinterest(Tap):
             default="DAY",
             description=(
                 "Granularity for analytics streams. "
-                "One of: TOTAL, DAY, HOUR, WEEK, MONTH. Defaults to DAY."
+                "One of: DAY, HOUR, WEEK, MONTH. Defaults to DAY."
             ),
-            allowed_values=["TOTAL", "DAY", "HOUR", "WEEK", "MONTH"],
+            allowed_values=["DAY", "HOUR", "WEEK", "MONTH"],
         ),
     ).to_dict()
 
