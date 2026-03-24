@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import decimal
 import sys
 from functools import cached_property
 from importlib import resources
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from singer_sdk import OpenAPISchema, StreamSchema, Stream
-from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk import OpenAPISchema, StreamSchema
 from singer_sdk.pagination import BaseAPIPaginator
 from singer_sdk.streams import RESTStream
 
@@ -22,16 +19,16 @@ else:
     from typing_extensions import override
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     import requests
+    from singer_sdk import Stream
     from singer_sdk.helpers.types import Auth, Context
 
 
-
 class PinterestSchema(StreamSchema):
+    """Schema override for the Pinterest OpenAPI spec."""
+
     @override
-    def get_stream_schema(self, stream: Stream, stream_class: type[Stream]):
+    def get_stream_schema(self, stream: Stream, stream_class: type[Stream]) -> dict:
         schema = super().get_stream_schema(stream, stream_class)
 
         # Remove problematic field
@@ -47,14 +44,10 @@ OPENAPI = OpenAPISchema(resources.files("tap_pinterest") / "openapi.json")
 class PinterestPaginator(BaseAPIPaginator):
     """Cursor-based paginator for Pinterest API using bookmark tokens."""
 
-    def has_more(self, response: requests.Response) -> bool:
-        """Return True if the response contains a bookmark for the next page."""
-        return bool(response.json().get("bookmark"))
-
     @override
     def get_next(self, response: requests.Response) -> str | None:
         """Extract the bookmark cursor from the response."""
-        return response.json().get("bookmark") or None
+        return response.json().get("bookmark")
 
 
 class PinterestStream(RESTStream):

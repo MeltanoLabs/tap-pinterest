@@ -6,10 +6,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from singer_sdk import StreamSchema
-from singer_sdk.pagination import BaseAPIPaginator, SinglePagePaginator
+from singer_sdk.pagination import SinglePagePaginator
 
-from tap_pinterest.client import PinterestStream, OPENAPI, PinterestSchema
+from tap_pinterest.client import OPENAPI, PinterestSchema, PinterestStream
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -18,6 +17,7 @@ else:
 
 if TYPE_CHECKING:
     from singer_sdk.helpers.types import Context
+    from singer_sdk.pagination import BaseAPIPaginator
 
 # Default set of analytics metric columns to request when not configured.
 DEFAULT_ANALYTICS_COLUMNS = [
@@ -206,7 +206,7 @@ class AdAnalyticsStream(_AnalyticsStream):
             "DATE": {
                 "type": "string",
                 "format": "date",
-                "description": "Metrics date. Only present when granularity is DAY, HOUR, WEEK, or MONTH.",
+                "description": "Metrics date.",
             },
             "metrics": _METRICS_PROPERTY,
         },

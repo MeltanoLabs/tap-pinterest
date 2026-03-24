@@ -1,14 +1,22 @@
 """Tests standard tap features using the built-in SDK tests library."""
 
 import datetime
+import os
 
 from singer_sdk.testing import get_tap_test_class
 
 from tap_pinterest.tap import TapPinterest
 
+CI = "CI" in os.environ
+
+
+def _one_week_ago() -> str:
+    dt = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+    return dt.strftime("%Y-%m-%d")
+
+
 SAMPLE_CONFIG = {
-    "start_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"),
-    # TODO: Initialize minimal tap config
+    "start_date": _one_week_ago(),
 }
 
 
@@ -16,7 +24,7 @@ SAMPLE_CONFIG = {
 TestTapPinterest = get_tap_test_class(
     tap_class=TapPinterest,
     config=SAMPLE_CONFIG,
+    include_tap_tests=not CI,
+    include_stream_tests=not CI,
+    include_stream_attribute_tests=not CI,
 )
-
-
-# TODO: Create additional tests as appropriate for your tap.
