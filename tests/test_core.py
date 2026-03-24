@@ -1,10 +1,13 @@
 """Tests standard tap features using the built-in SDK tests library."""
 
 import datetime
+import json
 import os
 
+from requests import Response
 from singer_sdk.testing import get_tap_test_class
 
+from tap_pinterest.client import PinterestPaginator
 from tap_pinterest.tap import TapPinterest
 
 CI = "CI" in os.environ
@@ -28,3 +31,18 @@ TestTapPinterest = get_tap_test_class(
     include_stream_tests=not CI,
     include_stream_attribute_tests=not CI,
 )
+
+
+def test_pinterest_paginator():
+    paginator = PinterestPaginator()
+
+    response = Response()
+    response._content = json.dumps({"items": [], "bookmark": "next-page"}).encode()
+
+    paginator.advance(response)
+    assert not paginator.finished
+    assert paginator.current_value == "next-page"
+
+    response._content = json.dumps({"items": [], "bookmark": None}).encode()
+    paginator.advance(response)
+    assert paginator.finished

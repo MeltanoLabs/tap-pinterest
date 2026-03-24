@@ -41,8 +41,13 @@ class PinterestSchema(StreamSchema):
 OPENAPI = OpenAPISchema(resources.files("tap_pinterest") / "openapi.json")
 
 
-class PinterestPaginator(BaseAPIPaginator):
+class PinterestPaginator(BaseAPIPaginator[str | None]):
     """Cursor-based paginator for Pinterest API using bookmark tokens."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize paginator."""
+        kwargs.setdefault("start_value", None)
+        super().__init__(*args, **kwargs)
 
     @override
     def get_next(self, response: requests.Response) -> str | None:
@@ -76,7 +81,7 @@ class PinterestStream(RESTStream):
     @override
     def get_new_paginator(self) -> BaseAPIPaginator:
         """Return a cursor-based paginator for Pinterest list endpoints."""
-        return PinterestPaginator(start_value=None)
+        return PinterestPaginator()
 
     @override
     def get_url_params(
