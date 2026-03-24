@@ -1,0 +1,74 @@
+send_anonymous_usage_stats: true
+project_id: "tap-pinterest"
+default_environment: test
+requires_meltano: ">=4.0"
+environments:
+- name: test
+plugins:
+  extractors:
+  - name: "tap-pinterest"
+    namespace: "tap_pinterest"
+    pip_url: -e .
+    capabilities:
+    - state
+    - catalog
+    - discover
+    - about
+    - stream-maps
+    - structured-logging
+
+    settings:
+    - name: client_id
+      kind: password
+      label: Client ID
+      description: Pinterest OAuth2 application client ID
+      sensitive: true
+
+    - name: client_secret
+      kind: password
+      label: Client Secret
+      description: Pinterest OAuth2 application client secret
+      sensitive: true
+
+    - name: refresh_token
+      kind: password
+      label: Refresh Token
+      description: Pinterest OAuth2 refresh token
+      sensitive: true
+
+    - name: start_date
+      kind: string
+      label: Start Date
+      description: >-
+        Start date for analytics streams in YYYY-MM-DD format.
+        Defaults to 30 days ago. Pinterest limits analytics to 90 days per request.
+
+    - name: end_date
+      kind: string
+      label: End Date
+      description: >-
+        End date for analytics streams in YYYY-MM-DD format.
+        Defaults to today.
+
+    - name: analytics_columns
+      kind: array
+      label: Analytics Columns
+      description: >-
+        List of metric columns to fetch for analytics streams.
+        Defaults to a standard set of spend, impression, click, and engagement metrics.
+
+    - name: analytics_granularity
+      kind: string
+      label: Analytics Granularity
+      description: >-
+        Granularity for analytics streams.
+        One of: TOTAL, DAY, HOUR, WEEK, MONTH. Defaults to DAY.
+      value: DAY
+
+    settings_group_validation:
+    - [client_id, client_secret, refresh_token]
+
+  loaders:
+  - name: target-jsonl
+    variant: andyh1203
+    pip_url: target-jsonl
