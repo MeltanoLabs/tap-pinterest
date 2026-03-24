@@ -33,16 +33,17 @@ TestTapPinterest = get_tap_test_class(
 )
 
 
-def test_pinterest_paginator():
+def test_pinterest_paginator() -> None:
+    """Test the custom Pinterest paginator."""
     paginator = PinterestPaginator()
 
     response = Response()
-    response._content = json.dumps({"items": [], "bookmark": "next-page"}).encode()
+    response._content = json.dumps({"items": [], "bookmark": "next-page"}).encode()  # noqa: SLF001
 
     paginator.advance(response)
     assert not paginator.finished
     assert paginator.current_value == "next-page"
 
-    response._content = json.dumps({"items": [], "bookmark": None}).encode()
+    response._content = json.dumps({"items": [], "bookmark": None}).encode()  # noqa: SLF001
     paginator.advance(response)
     assert paginator.finished

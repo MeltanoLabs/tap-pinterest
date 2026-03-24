@@ -74,6 +74,7 @@ class PinterestStream(RESTStream):
         return PinterestAuthenticator(
             client_id=self.config["client_id"],
             client_secret=self.config["client_secret"],
+            refresh_token=self.config.get("refresh_token"),
             auth_endpoint="https://api.pinterest.com/v5/oauth/token",
             oauth_scopes="ads:read",
         )

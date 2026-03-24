@@ -26,7 +26,7 @@ class PinterestAuthenticator(OAuthAuthenticator, metaclass=SingletonMeta):
         """
         return {
             "grant_type": "refresh_token",
-            "refresh_token": self.config.get("refresh_token"),
+            "refresh_token": self.refresh_token,
             "client_id": self.client_id,
             "client_secret": self.client_secret,
         }
