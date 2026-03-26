@@ -16,6 +16,7 @@ else:
     from typing_extensions import override
 
 if TYPE_CHECKING:
+    import requests
     from singer_sdk.helpers.types import Context
     from singer_sdk.pagination import BaseAPIPaginator
 
@@ -38,6 +39,15 @@ DEFAULT_ANALYTICS_COLUMNS = [
     "CAMPAIGN_NAME",
     "AD_GROUP_NAME",
     "AD_NAME",
+]
+
+
+DEFAULT_PIN_METRIC_TYPES = [
+    "IMPRESSION",
+    "OUTBOUND_CLICK",
+    "PIN_CLICK",
+    "SAVE",
+    "SAVE_RATE",
 ]
 
 
@@ -68,6 +78,14 @@ class CampaignsStream(PinterestStream):
 
     schema = PinterestSchema(OPENAPI, key="CampaignResponse")
 
+    @override
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        assert context is not None  # noqa: S101
+        return {
+            "ad_account_id": context["ad_account_id"],
+            "campaign_id": record["id"],
+        }
+
 
 class AdGroupsStream(PinterestStream):
     """Ad Groups stream — lists all ad groups within an ad account."""
@@ -91,6 +109,30 @@ class AdsStream(PinterestStream):
     parent_stream_type = AdAccountsStream
 
     schema = PinterestSchema(OPENAPI, key="AdResponse")
+
+    @override
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        assert context is not None  # noqa: S101
+        return {
+            "ad_account_id": context["ad_account_id"],
+            "ad_id": record["id"],
+        }
+
+
+class PinsStream(PinterestStream):
+    """Pins stream — lists all pins created by the authenticated user."""
+
+    name = "pins"
+    path = "/pins"
+    primary_keys = ("id",)
+    replication_key = "created_at"
+
+    schema = PinterestSchema(OPENAPI, key="Pin")
+
+    @override
+    def get_child_context(self, record: dict, context: Context | None) -> dict:
+        """Return context for child streams containing the pin ID."""
+        return {"pin_id": record["id"]}
 
 
 _METRICS_PROPERTY: dict = {
@@ -131,10 +173,11 @@ class _AnalyticsStream(PinterestStream):
         next_page_token: Any | None,
     ) -> dict[str, Any]:
         """Return URL parameters including required analytics fields."""
+        ninety_days_ago = datetime.now(tz=timezone.utc) - timedelta(days=90)
         if bookmark := self.get_starting_timestamp(context):
-            start_date = bookmark
+            start_date = max(bookmark, ninety_days_ago)
         else:
-            start_date = datetime.now(tz=timezone.utc) - timedelta(days=30)
+            start_date = ninety_days_ago
 
         end_date = self.config.get(
             "end_date",
@@ -164,7 +207,7 @@ class CampaignAnalyticsStream(_AnalyticsStream):
     name = "campaign_analytics"
     path = "/ad_accounts/{ad_account_id}/campaigns/analytics"
     primary_keys = ("CAMPAIGN_ID",)
-    parent_stream_type = AdAccountsStream
+    parent_stream_type = CampaignsStream
 
     _identity_keys: ClassVar[frozenset[str]] = frozenset({"CAMPAIGN_ID", "DATE"})
 
@@ -177,13 +220,24 @@ class CampaignAnalyticsStream(_AnalyticsStream):
             },
             "DATE": {
                 "type": "string",
-                "format": "date",
+                "format": "date-time",
                 "description": "Metrics date.",
             },
             "metrics": _METRICS_PROPERTY,
         },
         "required": ["CAMPAIGN_ID"],
     }
+
+    @override
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,
+    ) -> dict[str, Any]:
+        assert context is not None  # noqa: S101
+        params = super().get_url_params(context, next_page_token)
+        params["campaign_ids"] = [context["campaign_id"]]
+        return params
 
 
 class AdAnalyticsStream(_AnalyticsStream):
@@ -192,7 +246,7 @@ class AdAnalyticsStream(_AnalyticsStream):
     name = "ad_analytics"
     path = "/ad_accounts/{ad_account_id}/ads/analytics"
     primary_keys = ("AD_ID",)
-    parent_stream_type = AdAccountsStream
+    parent_stream_type = AdsStream
 
     _identity_keys: ClassVar[frozenset[str]] = frozenset({"AD_ID", "DATE"})
 
@@ -205,10 +259,83 @@ class AdAnalyticsStream(_AnalyticsStream):
             },
             "DATE": {
                 "type": "string",
-                "format": "date",
+                "format": "date-time",
                 "description": "Metrics date.",
             },
             "metrics": _METRICS_PROPERTY,
         },
         "required": ["AD_ID"],
     }
+
+    @override
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,
+    ) -> dict[str, Any]:
+        assert context is not None  # noqa: S101
+        params = super().get_url_params(context, next_page_token)
+        params["ad_ids"] = [context["ad_id"]]
+        return params
+
+
+class PinAnalyticsStream(_AnalyticsStream):
+    """Pin Analytics stream — daily organic metrics per pin.
+
+    The API response is a dict keyed by app_type (e.g. "TOTAL"), each containing
+    a ``daily_metrics`` array.  This stream flattens that into one record per
+    (pin_id, app_type, date).
+
+    Note: this endpoint is disabled in the Pinterest sandbox (x-sandbox: disabled).
+    """
+
+    name = "pin_analytics"
+    path = "/pins/{pin_id}/analytics"
+    primary_keys = ("pin_id", "app_type", "date")
+    replication_key = "date"
+    parent_stream_type = PinsStream
+
+    # _identity_keys not used — parse_response builds the record shape directly
+    _identity_keys: ClassVar[frozenset[str]] = frozenset()
+
+    schema: ClassVar[dict] = {
+        "type": "object",
+        "properties": {
+            "pin_id": {"type": "string"},
+            "app_type": {"type": "string"},
+            "date": {"type": "string", "format": "date"},
+            "metrics": {
+                "type": "object",
+                "additionalProperties": True,
+                "description": "Metric values keyed by metric name.",
+            },
+        },
+        "required": ["pin_id", "app_type", "date"],
+    }
+
+    @override
+    def get_url_params(
+        self,
+        context: Context | None,
+        next_page_token: Any | None,
+    ) -> dict[str, Any]:
+        params = super().get_url_params(context, next_page_token)
+        # Pin analytics uses metric_types instead of columns/granularity
+        params.pop("columns", None)
+        params.pop("granularity", None)
+        params["metric_types"] = DEFAULT_PIN_METRIC_TYPES
+        return params
+
+    @override
+    def parse_response(self, response: requests.Response) -> list[dict]:
+        """Flatten {app_type: {daily_metrics: [{date, metrics}]}} into records."""
+        return [
+            {"app_type": app_type, "date": day["date"], "metrics": day.get("metrics", {})}
+            for app_type, app_data in response.json().items()
+            for day in app_data.get("daily_metrics", [])
+        ]
+
+    @override
+    def post_process(self, row: dict, context: Context | None = None) -> dict | None:
+        """Add pin_id from parent context."""
+        return {"pin_id": context["pin_id"] if context else None, **row}

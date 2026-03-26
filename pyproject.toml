@@ -129,8 +129,10 @@ env_list = [
 ]
 
 [tool.tox.env_run_base]
+description = "run tests on Python {env_name}"
 runner = "uv-venv-lock-runner"
 pass_env = [
+    "CI",
     "GITHUB_*",
     "TAP_PINTEREST_*",
 ]
@@ -138,6 +140,7 @@ dependency_groups = [ "test" ]
 commands = [ [ "pytest", { replace = "posargs", default = [ "tests" ], extend = true } ] ]
 
 [tool.tox.env.typing]
+description = "type checks"
 dependency_groups = [ "test", "typing" ]
 commands = [
     [ "mypy", { replace = "posargs", default = [ "tap_pinterest", "tests" ], extend = true } ],

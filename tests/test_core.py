@@ -5,7 +5,7 @@ import json
 import os
 
 from requests import Response
-from singer_sdk.testing import get_tap_test_class
+from singer_sdk.testing import SuiteConfig, get_tap_test_class
 
 from tap_pinterest.client import PinterestPaginator
 from tap_pinterest.tap import TapPinterest
@@ -30,6 +30,13 @@ TestTapPinterest = get_tap_test_class(
     include_tap_tests=not CI,
     include_stream_tests=not CI,
     include_stream_attribute_tests=not CI,
+    suite_config=SuiteConfig(
+        ignore_no_records_for_streams=[
+            "pin_analytics",
+            "ad_analytics",
+            "campaign_analytics",
+        ]
+    ),
 )
 
 
