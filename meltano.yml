@@ -1,13 +1,13 @@
 send_anonymous_usage_stats: true
-project_id: "tap-pinterest"
+project_id: tap-pinterest
 default_environment: test
-requires_meltano: ">=4.0"
+requires_meltano: '>=4.0'
 environments:
 - name: test
 plugins:
   extractors:
-  - name: "tap-pinterest"
-    namespace: "tap_pinterest"
+  - name: tap-pinterest
+    namespace: tap_pinterest
     pip_url: -e .
     capabilities:
     - state
@@ -17,22 +17,65 @@ plugins:
     - stream-maps
     - structured-logging
 
+    select_filter:
+    - "!*_analytics"
+
+    settings_group_validation:
+    - [client_id, client_secret, refresh_token]
+    - [oauth_credentials]
+    - [access_token]
+
     settings:
     - name: client_id
-      kind: password
+      kind: string
       label: Client ID
       description: Pinterest OAuth2 application client ID
       sensitive: true
 
     - name: client_secret
-      kind: password
+      kind: string
       label: Client Secret
       description: Pinterest OAuth2 application client secret
       sensitive: true
 
     - name: refresh_token
-      kind: password
+      kind: string
       label: Refresh Token
+      description: Pinterest OAuth2 refresh token
+      sensitive: true
+
+    - name: access_token
+      kind: string
+      label: Access Token
+      description: Pinterest Access Token
+      sensitive: true
+
+    - name: api_url
+      kind: string
+      label: API URL
+      description: Pinterest API base URL. Use https://api-sandbox.pinterest.com/v5 for the sandbox.
+      value: https://api.pinterest.com/v5
+
+    - name: oauth_credentials.refresh_proxy_url
+      kind: string
+      label: Refresh Proxy URL
+      description: Proxy URL to refresh the access token without client credentials
+
+    - name: oauth_credentials.refresh_proxy_url_auth
+      kind: string
+      label: Refresh Proxy URL Auth
+      description: Authorization header value for the OAuth proxy URL
+      sensitive: true
+
+    - name: oauth_credentials.access_token
+      kind: string
+      label: Access Token
+      description: Pinterest OAuth2 access token
+      sensitive: true
+
+    - name: oauth_credentials.refresh_token
+      kind: string
+      label: OAuth Credentials Refresh Token
       description: Pinterest OAuth2 refresh token
       sensitive: true
 
@@ -59,16 +102,16 @@ plugins:
 
     - name: analytics_granularity
       kind: string
+      value: DAY
       label: Analytics Granularity
       description: >-
         Granularity for analytics streams.
         One of: TOTAL, DAY, HOUR, WEEK, MONTH. Defaults to DAY.
-      value: DAY
-
-    settings_group_validation:
-    - [client_id, client_secret, refresh_token]
 
   loaders:
   - name: target-jsonl
     variant: andyh1203
     pip_url: target-jsonl
+  - name: target-duckdb
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/target-duckdb.git

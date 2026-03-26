@@ -24,7 +24,6 @@ class TapPinterest(Tap):
         th.Property(
             "client_id",
             th.StringType(nullable=False),
-            required=True,
             secret=True,
             title="Client ID",
             description="Pinterest OAuth2 application client ID",
@@ -32,7 +31,6 @@ class TapPinterest(Tap):
         th.Property(
             "client_secret",
             th.StringType(nullable=False),
-            required=True,
             secret=True,
             title="Client Secret",
             description="Pinterest OAuth2 application client secret",
@@ -40,10 +38,58 @@ class TapPinterest(Tap):
         th.Property(
             "refresh_token",
             th.StringType(nullable=False),
-            required=True,
             secret=True,
             title="Refresh Token",
             description="Pinterest OAuth2 refresh token",
+        ),
+        th.Property(
+            "api_url",
+            th.StringType(nullable=False),
+            default="https://api.pinterest.com/v5",
+            title="API URL",
+            description="Pinterest API URL",
+        ),
+        th.Property(
+            "access_token",
+            th.StringType(),
+            secret=True,
+            title="Pinterest Access Token",
+            description="Skips the OAuth flow to access the API directly",
+        ),
+        th.Property(
+            "oauth_credentials",
+            th.ObjectType(
+                th.Property(
+                    "refresh_proxy_url",
+                    th.StringType(nullable=False),
+                    required=True,
+                    description="Proxy URL to refresh the access token without client credentials",
+                ),
+                th.Property(
+                    "refresh_proxy_url_auth",
+                    th.StringType,
+                    secret=True,
+                    description="Authorization header value for the OAuth proxy URL",
+                ),
+                th.Property(
+                    "access_token",
+                    th.StringType,
+                    secret=True,
+                    description="Pinterest OAuth2 access token",
+                ),
+                th.Property(
+                    "refresh_token",
+                    th.StringType(nullable=False),
+                    required=True,
+                    secret=True,
+                    description="Pinterest OAuth2 refresh token",
+                ),
+            ),
+            title="OAuth Credentials",
+            description=(
+                "OAuth credentials for Meltano Cloud proxy authentication. "
+                "When provided, client_id and client_secret are not required."
+            ),
         ),
         th.Property(
             "start_date",
@@ -75,8 +121,8 @@ class TapPinterest(Tap):
             title="Analytics Granularity",
             default="DAY",
             description=(
-                "Granularity for analytics streams. "
-                "One of: DAY, HOUR, WEEK, MONTH. Defaults to DAY."
+                "Granularity for analytics streams. One of: DAY, HOUR, WEEK, MONTH. "
+                "Defaults to DAY."
             ),
             allowed_values=["DAY", "HOUR", "WEEK", "MONTH"],
         ),
@@ -86,11 +132,13 @@ class TapPinterest(Tap):
     def discover_streams(self) -> list[streams.PinterestStream]:
         """Return a list of discovered streams."""
         return [
+            streams.PinsStream(self),
+            streams.PinAnalyticsStream(self),
             streams.AdAccountsStream(self),
             streams.CampaignsStream(self),
+            streams.CampaignAnalyticsStream(self),
             streams.AdGroupsStream(self),
             streams.AdsStream(self),
-            streams.CampaignAnalyticsStream(self),
             streams.AdAnalyticsStream(self),
         ]
 

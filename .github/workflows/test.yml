@@ -43,7 +43,7 @@ jobs:
         id: baipp
 
   pytest:
-    name: Integration
+    name: Test
     needs: [build-package]
     runs-on: ubuntu-latest
     strategy:

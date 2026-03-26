@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 from functools import cached_property
 from importlib import resources
 from typing import TYPE_CHECKING, Any
 
 from singer_sdk import OpenAPISchema, StreamSchema
+from singer_sdk.authenticators import BearerTokenAuthenticator
 from singer_sdk.pagination import BaseAPIPaginator
 from singer_sdk.streams import RESTStream
 
-from tap_pinterest.auth import PinterestAuthenticator
+from tap_pinterest.auth import PinterestAuthenticator, PinterestProxyAuthenticator
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -22,6 +24,11 @@ if TYPE_CHECKING:
     import requests
     from singer_sdk import Stream
     from singer_sdk.helpers.types import Auth, Context
+
+
+def basic_creds_encode(username: str, password: str, /) -> str:
+    """Encode a username and password as base64 for basic authentication."""
+    return base64.b64encode(f"{username}:{password}".encode()).decode()
 
 
 class PinterestSchema(StreamSchema):
@@ -65,18 +72,34 @@ class PinterestStream(RESTStream):
     @property
     def url_base(self) -> str:
         """Return the Pinterest API v5 base URL."""
-        return "https://api.pinterest.com/v5"
+        return self.config["api_url"]
 
     @override
     @cached_property
     def authenticator(self) -> Auth:
         """Return a new authenticator object."""
+        if access_token := self.config.get("access_token"):
+            return BearerTokenAuthenticator(token=access_token)
+
+        if oauth_creds := self.config.get("oauth_credentials"):
+            headers: dict[str, str] = {}
+            if auth_header := oauth_creds.get("refresh_proxy_url_auth"):
+                headers["Authorization"] = auth_header
+            authenticator = PinterestProxyAuthenticator(
+                auth_endpoint=oauth_creds["refresh_proxy_url"],
+                oauth_headers=headers,
+            )
+            authenticator.refresh_token = oauth_creds["refresh_token"]
+            if access_token := oauth_creds.get("access_token"):
+                authenticator.access_token = access_token
+            return authenticator
+
+        credentials = basic_creds_encode(self.config["client_id"], self.config["client_secret"])
         return PinterestAuthenticator(
-            client_id=self.config["client_id"],
-            client_secret=self.config["client_secret"],
-            refresh_token=self.config.get("refresh_token"),
-            auth_endpoint="https://api.pinterest.com/v5/oauth/token",
+            auth_endpoint=f"{self.url_base}/oauth/token",
             oauth_scopes="ads:read",
+            oauth_headers={"Authorization": f"Basic {credentials}"},
+            refresh_token=self.config["refresh_token"],
         )
 
     @override
