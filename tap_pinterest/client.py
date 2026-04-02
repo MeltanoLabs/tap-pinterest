@@ -97,7 +97,7 @@ class PinterestStream(RESTStream):
         credentials = basic_creds_encode(self.config["client_id"], self.config["client_secret"])
         return PinterestAuthenticator(
             auth_endpoint=f"{self.url_base}/oauth/token",
-            oauth_scopes="ads:read",
+            oauth_scopes="ads:read boards:read pins:read",
             oauth_headers={"Authorization": f"Basic {credentials}"},
             refresh_token=self.config["refresh_token"],
         )
